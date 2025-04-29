@@ -7,10 +7,12 @@ use serde_bytes::ByteBuf;
 use sha1_checked::Sha1;
 use std::io::{self, Read};
 
+use crate::tracker::Tracker;
+
 #[derive(Clone)]
 pub struct TorrentFile {
     pub torrent: Torrent,
-    pub info_hash: String,
+    pub tracker: Tracker,
 }
 
 impl TorrentFile {
@@ -18,14 +20,15 @@ impl TorrentFile {
     pub fn new(file_path: String) -> Result<Self, String> {
         match std::fs::read(file_path) {
             Ok(buf) => match de::from_bytes::<Torrent>(&buf) {
-                Ok(t) => {
+                Ok(mut t) => {
                     // Save the result of sha1(bencode(info)) to send Tracker request.
                     let info_ben = serde_bencode::to_bytes(&t.info).unwrap();
                     let result = Sha1::try_digest(info_ben);
                     let info_sha1_hash = hex::encode(result.hash());
+                    t.set_info_hash(info_sha1_hash);
                     Ok(Self {
-                        torrent: t,
-                        info_hash: info_sha1_hash,
+                        torrent: t.clone(),
+                        tracker: Tracker { torrent: t.clone() },
                     })
                 }
                 Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
@@ -33,7 +36,6 @@ impl TorrentFile {
             Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
         }
     }
-
     /// is multiple file
     pub fn is_multiple_files(&self) -> bool {
         let torrent = &self.torrent;
@@ -43,39 +45,6 @@ impl TorrentFile {
             true
         }
     }
-    /// total block num
-    pub fn total_block_num(&self) -> i64 {
-        self.torrent.info.length.unwrap() / self.torrent.info.piece_length
-    }
-    // download
-    pub fn download(&self) -> Result<&str, &str> {
-        match self.is_multiple_files() {
-            true => {}
-            false => {}
-        }
-        Ok("")
-    }
-    pub async fn download_by_http(&self) -> Result<(), reqwest::Error> {
-        let mut params = vec![
-            ("info_hash", self.info_hash.clone()),
-            ("peer_id", "".to_string()),
-            ("port", "".to_string()),
-            ("uploaded", "0".to_string()),
-            ("downloaded", "0".to_string()),
-            ("left", "0".to_string()),
-            ("event", "started".to_string()),
-        ];
-        // let client = Client::builder()
-        //     .proxy(Proxy::http("http://localhost:7897")?)
-        //     .build()?;
-        let client = reqwest::Client::new();
-        let url = self.torrent.announce.clone().unwrap();
-        let u = self.torrent.announce.clone().unwrap();
-        let url = Url::parse_with_params(&url, &params).unwrap();
-        let body = client.get(url).send().await?;
-        Ok(())
-    }
-    pub fn download_by_udp() {}
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -115,22 +84,29 @@ pub struct Info {
 pub struct Torrent {
     pub info: Info,
     #[serde(default)]
-    announce: Option<String>,
+    pub announce: Option<String>,
     #[serde(default)]
-    nodes: Option<Vec<Node>>,
+    pub nodes: Option<Vec<Node>>,
     #[serde(default)]
-    encoding: Option<String>,
+    pub encoding: Option<String>,
     #[serde(default)]
-    httpseeds: Option<Vec<String>>,
+    pub httpseeds: Option<Vec<String>>,
     #[serde(default)]
     #[serde(rename = "announce-list")]
-    announce_list: Option<Vec<Vec<String>>>,
+    pub announce_list: Option<Vec<Vec<String>>>,
     #[serde(default)]
     #[serde(rename = "creation date")]
-    creation_date: Option<i64>,
+    pub creation_date: Option<i64>,
     #[serde(rename = "comment")]
-    comment: Option<String>,
+    pub comment: Option<String>,
     #[serde(default)]
     #[serde(rename = "created by")]
-    created_by: Option<String>,
+    pub created_by: Option<String>,
+    pub info_hash: Option<String>,
+}
+
+impl Torrent {
+    pub fn set_info_hash(&mut self, hash: String) {
+        self.info_hash = Some(hash);
+    }
 }

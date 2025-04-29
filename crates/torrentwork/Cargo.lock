@@ -1193,6 +1193,7 @@ name = "torrentwork"
 version = "0.1.0"
 dependencies = [
  "hex",
+ "log",
  "regex",
  "reqwest",
  "serde",
