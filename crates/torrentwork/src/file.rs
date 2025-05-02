@@ -1,18 +1,21 @@
-use reqwest::{Client, Proxy};
-use reqwest::{Url, header};
-use serde::Deserialize;
-use serde::Serialize;
+use magnet_url::Magnet;
 use serde_bencode::de;
-use serde_bytes::ByteBuf;
-use sha1_checked::Sha1;
-use std::io::{self, Read};
+use sha1::{Digest, Sha1};
+use urlencoding::encode;
+extern crate url;
+use crate::torrent::Torrent;
 
-use crate::tracker::Tracker;
-
-#[derive(Clone)]
+/// torrent file abstract
+#[derive(Clone, Debug)]
 pub struct TorrentFile {
-    pub torrent: Torrent,
-    pub tracker: Tracker,
+    /// torrent file abstract
+    pub meta_data: Torrent,
+    /// torrent file all tracker server address
+    pub announces: Vec<String>,
+    /// torrent file info hash
+    pub info_hash: String,
+    /// ultiple file tags
+    pub is_multiple_files: bool,
 }
 
 impl TorrentFile {
@@ -20,15 +23,19 @@ impl TorrentFile {
     pub fn new(file_path: String) -> Result<Self, String> {
         match std::fs::read(file_path) {
             Ok(buf) => match de::from_bytes::<Torrent>(&buf) {
-                Ok(mut t) => {
+                Ok(t) => {
                     // Save the result of sha1(bencode(info)) to send Tracker request.
-                    let info_ben = serde_bencode::to_bytes(&t.info).unwrap();
-                    let result = Sha1::try_digest(info_ben);
-                    let info_sha1_hash = hex::encode(result.hash());
-                    t.set_info_hash(info_sha1_hash);
+                    let mut info_bytes = serde_bencode::to_bytes(&t.info).unwrap();
+                    let mut s1 = Sha1::new();
+                    s1.update(info_bytes);
+                    let mut info_sha1_hash = hex::encode(s1.finalize().to_vec());
+                    // trim 20 bytes
+                    info_sha1_hash = (&info_sha1_hash[..20]).to_string();
                     Ok(Self {
-                        torrent: t.clone(),
-                        tracker: Tracker { torrent: t.clone() },
+                        meta_data: t.clone(),
+                        announces: Self::get_all_announce(&t),
+                        info_hash: encode(&info_sha1_hash).to_string(),
+                        is_multiple_files: Self::is_multiple_files(&t),
                     })
                 }
                 Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
@@ -36,77 +43,42 @@ impl TorrentFile {
             Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
         }
     }
-    /// is multiple file
-    pub fn is_multiple_files(&self) -> bool {
-        let torrent = &self.torrent;
-        if torrent.info.files.is_none() {
-            false
-        } else {
-            true
+    /// get .torrent file all announce url
+    fn get_all_announce(torrent: &Torrent) -> Vec<String> {
+        let mut announces: Vec<String> = vec![];
+        if !torrent.announce.is_none() {
+            announces.push(torrent.announce.clone().unwrap());
         }
+        for (_i, v) in torrent.announce_list.clone().unwrap().iter().enumerate() {
+            for (_index, value) in v.iter().enumerate() {
+                announces.push(value.to_string());
+            }
+        }
+        announces
     }
-}
+    /// make a magnet url
+    pub fn make_magnet_url(&self) -> Result<String, String> {
+        let m = Magnet {
+            dn: Some(self.meta_data.info.name.clone()),
+            hash_type: Some("btih".to_string()),
+            xt: Some(self.info_hash.clone()),
+            xs: None,
+            kt: None,
+            ws: None,
+            acceptable_source: None,
+            mt: None,
+            xl: None,
+            tr: vec![],
+        };
+        Ok(m.to_string())
+    }
+    /// make a .torrent file
+    pub fn make() {}
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct Node(String, i64);
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct File {
-    pub path: Vec<String>,
-    pub length: i64,
-    #[serde(default)]
-    pub md5sum: Option<String>,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Info {
-    pub name: String,
-    pub pieces: ByteBuf,
-    #[serde(rename = "piece length")]
-    pub piece_length: i64,
-    #[serde(default)]
-    pub md5sum: Option<String>,
-    #[serde(default)]
-    pub length: Option<i64>,
-    #[serde(default)]
-    pub files: Option<Vec<File>>,
-    #[serde(default)]
-    pub private: Option<u8>,
-    #[serde(default)]
-    pub path: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "root hash")]
-    pub root_hash: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Torrent {
-    pub info: Info,
-    #[serde(default)]
-    pub announce: Option<String>,
-    #[serde(default)]
-    pub nodes: Option<Vec<Node>>,
-    #[serde(default)]
-    pub encoding: Option<String>,
-    #[serde(default)]
-    pub httpseeds: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "announce-list")]
-    pub announce_list: Option<Vec<Vec<String>>>,
-    #[serde(default)]
-    #[serde(rename = "creation date")]
-    pub creation_date: Option<i64>,
-    #[serde(rename = "comment")]
-    pub comment: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "created by")]
-    pub created_by: Option<String>,
-    pub info_hash: Option<String>,
-}
-
-impl Torrent {
-    pub fn set_info_hash(&mut self, hash: String) {
-        self.info_hash = Some(hash);
+    /// storage the .torrent to disk
+    pub fn storage(&self) {}
+    /// is multiple file
+    pub fn is_multiple_files(tf: &Torrent) -> bool {
+        if tf.info.files.is_none() { false } else { true }
     }
 }
