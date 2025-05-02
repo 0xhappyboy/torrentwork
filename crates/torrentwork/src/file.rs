@@ -14,7 +14,7 @@ pub struct TorrentFile {
     pub announces: Vec<String>,
     /// torrent file info hash
     pub info_hash: String,
-    /// ultiple file tags
+    /// multiple file tags
     pub is_multiple_files: bool,
 }
 
