@@ -34,7 +34,6 @@ impl Tracker {
             // task pool
             let mut task_pool: Vec<JoinHandle<_>> = Vec::new();
             let mut files = self.torrent_file.meta_data.info.files.clone().unwrap();
-
             for (index, file) in files.iter_mut().enumerate() {
                 for (_i, u) in self.torrent_file.announces.iter().enumerate() {
                     let mut protocol_str: Vec<&str> = u.split("://").collect();
@@ -94,7 +93,8 @@ impl Tracker {
                 }
             }
         }
-        let ret_map = Arc::clone(&res_map).lock().unwrap().to_owned();
+        let arc_map = Arc::clone(&res_map);
+        let ret_map = arc_map.lock().unwrap().to_owned();
         Ok(ret_map)
     }
 }
