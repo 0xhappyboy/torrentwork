@@ -1,1 +1,1 @@
-a bittorrent client
+a bittorrent framework, including SDK and some applications developed based on this SDK.
