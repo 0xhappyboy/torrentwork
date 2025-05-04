@@ -38,7 +38,10 @@ pub struct File {
     pub length: i64,
     #[serde(default)]
     pub md5sum: Option<String>,
+    #[serde(skip)]
     pub tracker_response_list: Option<Vec<HttpTrackerResponse>>,
+    #[serde(skip)]
+    pub info_hash: String,
 }
 
 impl File {

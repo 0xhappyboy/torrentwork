@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_bencode::de;
 use url::Url;
 
+use crate::peer::Peer;
+
 const HTTP_REQUEST_TIMEOUT_SEC: u64 = 10;
 
 #[derive(Debug, Clone)]
@@ -106,15 +108,3 @@ pub struct HttpTrackerResponse {
     pub min_interval: Option<u64>,
     pub peers: Option<Vec<Peer>>,
 }
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Peer {
-    #[serde(default, rename = "peer id")]
-    pub peer_id: Option<String>,
-    #[serde(default)]
-    pub ip: Option<String>,
-    #[serde(default)]
-    pub port: Option<u64>,
-}
-
-impl Peer {}
