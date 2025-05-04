@@ -1,9 +1,8 @@
+use crate::torrent::Torrent;
 use magnet_url::Magnet;
 use serde_bencode::de;
 use sha1::{Digest, Sha1};
 use urlencoding::encode;
-extern crate url;
-use crate::torrent::Torrent;
 
 /// torrent file abstract
 #[derive(Clone, Debug)]

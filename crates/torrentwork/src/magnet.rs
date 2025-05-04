@@ -1,5 +1,4 @@
 use regex::Regex;
-use sha1_checked::digest::consts::False;
 
 use crate::file::TorrentFile;
 

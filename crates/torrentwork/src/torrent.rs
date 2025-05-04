@@ -2,6 +2,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_bytes::ByteBuf;
 
+use crate::tracker::http::HttpTrackerResponse;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Torrent {
     pub info: Info,
@@ -35,6 +37,13 @@ pub struct File {
     pub length: i64,
     #[serde(default)]
     pub md5sum: Option<String>,
+    pub tracker_response_list: Option<Vec<HttpTrackerResponse>>,
+}
+
+impl File {
+    pub fn set_tracker_response_list(&mut self, l: Option<Vec<HttpTrackerResponse>>) {
+        self.tracker_response_list = l;
+    }
 }
 
 #[allow(dead_code)]
@@ -57,4 +66,14 @@ pub struct Info {
     #[serde(default)]
     #[serde(rename = "root hash")]
     pub root_hash: Option<String>,
+    pub tracker_response_list: Option<Vec<HttpTrackerResponse>>,
+}
+
+impl Info {
+    pub fn set_tracker_response_list(&mut self, l: Option<Vec<HttpTrackerResponse>>) {
+        self.tracker_response_list = l;
+    }
+    pub fn set_files(&mut self, files: Vec<File>) {
+        self.files = Some(files);
+    }
 }
