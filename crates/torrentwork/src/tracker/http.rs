@@ -1,9 +1,11 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, thread, time::Duration};
 
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_bencode::de;
 use url::Url;
+
+const HTTP_REQUEST_TIMEOUT_SEC: u64 = 10;
 
 #[derive(Debug, Clone)]
 pub struct HttpTracker {
@@ -15,13 +17,13 @@ impl HttpTracker {
         // let client = reqwest::Client::new();
         Self {
             client: Client::builder()
-                .timeout(Duration::from_secs(5)) // time out 5s
+                .timeout(Duration::from_secs(HTTP_REQUEST_TIMEOUT_SEC))
                 .build()
                 .unwrap(),
         }
     }
     /// http tracker requests
-    pub async fn http_request(
+    pub async fn send(
         &self,
         url: &str,
         req: HttpTrackerRquest,

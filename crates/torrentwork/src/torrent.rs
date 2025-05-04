@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use serde_bytes::ByteBuf;
+use sha1::{Digest, Sha1};
 
 use crate::tracker::http::HttpTrackerResponse;
 
@@ -44,6 +45,14 @@ impl File {
     pub fn set_tracker_response_list(&mut self, l: Option<Vec<HttpTrackerResponse>>) {
         self.tracker_response_list = l;
     }
+    pub fn to_sha1_hash(&self) -> String {
+        // Save the result of sha1(bencode(info)) to send Tracker request.
+        let mut info_bytes = serde_bencode::to_bytes(&self).unwrap();
+        let mut s1 = Sha1::new();
+        s1.update(info_bytes);
+        let mut sha1_hash = hex::encode(s1.finalize().to_vec());
+        sha1_hash
+    }
 }
 
 #[allow(dead_code)]
@@ -75,5 +84,13 @@ impl Info {
     }
     pub fn set_files(&mut self, files: Vec<File>) {
         self.files = Some(files);
+    }
+    pub fn to_sha1_hash(&self) -> String {
+        // Save the result of sha1(bencode(info)) to send Tracker request.
+        let mut info_bytes = serde_bencode::to_bytes(&self).unwrap();
+        let mut s1 = Sha1::new();
+        s1.update(info_bytes);
+        let mut sha1_hash = hex::encode(s1.finalize().to_vec());
+        sha1_hash
     }
 }

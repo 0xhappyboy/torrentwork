@@ -1,4 +1,9 @@
-use crate::torrent::Torrent;
+use std::{collections::HashMap, hash::Hash};
+
+use crate::{
+    torrent::Torrent,
+    tracker::http::{HttpTrackerResponse, HttpTrackerRquest},
+};
 use magnet_url::Magnet;
 use serde_bencode::de;
 use sha1::{Digest, Sha1};
@@ -15,6 +20,8 @@ pub struct TorrentFile {
     pub info_hash: String,
     /// multiple file tags
     pub is_multiple_files: bool,
+    /// the peer list corresponding to the file
+    pub peers: Option<HashMap<String, Vec<HttpTrackerResponse>>>,
 }
 
 impl TorrentFile {
@@ -35,6 +42,7 @@ impl TorrentFile {
                         announces: Self::get_all_announce(&t),
                         info_hash: encode(&info_sha1_hash).to_string(),
                         is_multiple_files: Self::is_multiple_files(&t),
+                        peers: None,
                     })
                 }
                 Err(e) => Err(format!("ERROR: {:?}", e).to_string()),

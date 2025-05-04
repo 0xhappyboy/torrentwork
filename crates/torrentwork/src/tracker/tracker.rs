@@ -26,16 +26,15 @@ impl Tracker {
         Self { torrent_file: tf }
     }
     /// used to send tracker requests
-    pub async fn get_peers(&mut self) -> Vec<HttpTrackerResponse> {
-        let _res_map: HashMap<String, String> = HashMap::new();
-        // tracker response list
-        let mut tr_list: Arc<Mutex<Vec<HttpTrackerResponse>>> =
-            Arc::new(Mutex::new(Vec::<HttpTrackerResponse>::new()));
+    pub async fn get_peers(&mut self) -> Result<HashMap<String, Vec<HttpTrackerResponse>>, String> {
+        let res_map: Arc<Mutex<HashMap<String, Vec<HttpTrackerResponse>>>> =
+            Arc::new(Mutex::new(HashMap::new()));
         // multiple file processing
         if self.torrent_file.is_multiple_files {
             // task pool
             let mut task_pool: Vec<JoinHandle<_>> = Vec::new();
             let mut files = self.torrent_file.meta_data.info.files.clone().unwrap();
+
             for (index, file) in files.iter_mut().enumerate() {
                 for (_i, u) in self.torrent_file.announces.iter().enumerate() {
                     let mut protocol_str: Vec<&str> = u.split("://").collect();
@@ -54,14 +53,20 @@ impl Tracker {
                             );
                             /// url
                             let url = u.clone();
-                            let m_list = Arc::clone(&tr_list);
+                            // fiel sha1 hash
+                            let file_sha1_hash = file.to_sha1_hash();
+                            let arc_map = Arc::clone(&res_map);
                             task_pool.push(tokio::spawn(async move {
                                 // http tracker
                                 let http_tracker = HttpTracker::new();
-                                match http_tracker.http_request(&url, req).await {
+                                match http_tracker.send(&url, req).await {
                                     Ok(r) => {
-                                        let mut list = m_list.lock().unwrap();
-                                        list.push(r);
+                                        let mut map = arc_map.lock().unwrap();
+                                        if map.contains_key(&file_sha1_hash) {
+                                            map.get_mut(&file_sha1_hash).unwrap().push(r);
+                                        } else {
+                                            map.insert(file_sha1_hash, vec![r]);
+                                        }
                                     }
                                     Err(e) => {}
                                 }
@@ -72,7 +77,6 @@ impl Tracker {
                         }
                     }
                 }
-                file.set_tracker_response_list(Some(tr_list.lock().unwrap().to_vec()));
             }
             for t in task_pool {
                 join!(t);
@@ -90,6 +94,7 @@ impl Tracker {
                 }
             }
         }
-        tr_list.lock().unwrap().to_vec()
+        let ret_map = Arc::clone(&res_map).lock().unwrap().to_owned();
+        Ok(ret_map)
     }
 }
