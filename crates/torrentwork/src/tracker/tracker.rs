@@ -1,13 +1,11 @@
 use std::{
-    clone,
     collections::HashMap,
     sync::{Arc, Mutex},
-    thread,
 };
 
 use tokio::{join, task::JoinHandle};
 
-use crate::{file::TorrentFile, tracker};
+use crate::file::TorrentFile;
 
 use super::http::{HttpTracker, HttpTrackerResponse, HttpTrackerRquest};
 
@@ -34,9 +32,9 @@ impl Tracker {
             // task pool
             let mut task_pool: Vec<JoinHandle<_>> = Vec::new();
             let mut files = self.torrent_file.meta_data.info.files.clone().unwrap();
-            for (index, file) in files.iter_mut().enumerate() {
+            for (_index, file) in files.iter_mut().enumerate() {
                 for (_i, u) in self.torrent_file.announces.iter().enumerate() {
-                    let mut protocol_str: Vec<&str> = u.split("://").collect();
+                    let protocol_str: Vec<&str> = u.split("://").collect();
                     match protocol_str[0] {
                         "udp" => {}
                         "http" | "https" => {
@@ -50,7 +48,7 @@ impl Tracker {
                                 HTTP_TRACKER_COMPACT_MODE.0.to_string(),
                                 HTTP_TRACKER_EVENT_MODE.0.to_string(),
                             );
-                            /// url
+                            // url
                             let url = u.clone();
                             // fiel sha1 hash
                             let file_sha1_hash = file.to_sha1_hash();
@@ -67,7 +65,7 @@ impl Tracker {
                                             map.insert(file_sha1_hash, vec![r]);
                                         }
                                     }
-                                    Err(e) => {}
+                                    Err(_e) => {}
                                 }
                             }));
                         }
