@@ -1,8 +1,13 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::{
-    torrent::Torrent,
-    tracker::http::{HttpTrackerResponse, HttpTrackerRquest},
+    download::{self, Download},
+    peer::{self, Peer},
+    torrent::{File, Torrent},
+    tracker::{
+        http::{HttpTrackerResponse, HttpTrackerRquest},
+        tracker::Tracker,
+    },
 };
 use magnet_url::Magnet;
 use serde_bencode::de;
@@ -22,6 +27,8 @@ pub struct TorrentFile {
     pub is_multiple_files: bool,
     /// the peer list corresponding to the file
     pub peers: Option<HashMap<String, Vec<HttpTrackerResponse>>>,
+    /// download task list
+    pub downloads: Option<Vec<Download>>,
 }
 
 impl TorrentFile {
@@ -43,12 +50,39 @@ impl TorrentFile {
                         info_hash: encode(&info_sha1_hash).to_string(),
                         is_multiple_files: Self::is_multiple_files(&t),
                         peers: None,
+                        downloads: Some(vec![]),
                     })
                 }
                 Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
             },
             Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
         }
+    }
+    /// peers node processing
+    pub async fn peers(&mut self) -> Self {
+        let mut tracker = Tracker::new(self.clone());
+        self.peers = Some(tracker.get_peers().await.unwrap());
+        self.clone()
+    }
+    /// ready to download
+    pub async fn ready_to_download(&mut self) -> Self {
+        let mut download_list = Vec::<Download>::new();
+        self.meta_data.info.files.iter().for_each(|e| {
+            e.clone().iter().for_each(|f| {
+                let mut p_list: Vec<Peer> = vec![];
+                for (key, val) in self.peers.clone().unwrap().iter() {
+                    if key.eq(&f.to_sha1_hash().clone()) {
+                        val.iter().for_each(|e| {
+                            p_list.append(&mut e.peers.clone().unwrap());
+                        });
+                    }
+                }
+                let download = Download::new(f.clone(), p_list, 0);
+                download_list.push(download);
+            });
+        });
+        self.downloads = Some(download_list);
+        self.clone()
     }
     /// get .torrent file all announce url
     fn get_all_announce(torrent: &Torrent) -> Vec<String> {
@@ -81,7 +115,6 @@ impl TorrentFile {
     }
     /// make a .torrent file
     pub fn make() {}
-
     /// storage the .torrent to disk
     pub fn storage(&self) {}
     /// is multiple file
