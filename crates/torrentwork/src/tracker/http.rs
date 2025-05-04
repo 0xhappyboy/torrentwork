@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::time::Duration;
 
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};

@@ -20,17 +20,17 @@ pub struct Peer {
 impl Peer {
     pub async fn handshake(&self) -> Result<String, Box<dyn std::error::Error>> {
         let address = format!("{:?}:{:?}", self.ip, self.port);
-        let mut stream = TcpStream::connect(address).await;
+        let stream = TcpStream::connect(address).await;
         match stream {
             Ok(mut s) => {
                 let h = Handshake::new(self.info_hash.clone(), "00112233445566778899".to_string());
                 let h_bytes = h.to_bytes();
-                s.write(&h_bytes);
+                let _ = s.write(&h_bytes);
                 let mut buffer = [0; 1024];
                 let len = s.read(&mut buffer).await?;
-                let response = std::str::from_utf8(&buffer[..len])?;
+                let _response = std::str::from_utf8(&buffer[..len])?;
             }
-            Err(e) => {}
+            Err(_e) => {}
         }
         Ok("".to_string())
     }

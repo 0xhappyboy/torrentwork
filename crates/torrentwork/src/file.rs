@@ -1,13 +1,10 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
 use crate::{
-    download::{self, Download},
-    peer::{self, Peer},
-    torrent::{File, Torrent},
-    tracker::{
-        http::{HttpTrackerResponse, HttpTrackerRquest},
-        tracker::Tracker,
-    },
+    download::Download,
+    peer::Peer,
+    torrent::Torrent,
+    tracker::{http::HttpTrackerResponse, tracker::Tracker},
 };
 use magnet_url::Magnet;
 use serde_bencode::de;
