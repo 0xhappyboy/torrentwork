@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 use crate::{
-    download::Download,
+    download::DownloadTask,
     peer::Peer,
     torrent::Torrent,
     tracker::{http::HttpTrackerResponse, tracker::Tracker},
@@ -25,7 +25,9 @@ pub struct TorrentFile {
     /// the peer list corresponding to the file
     pub peers: Option<HashMap<String, Vec<HttpTrackerResponse>>>,
     /// download task list
-    pub downloads: Option<Vec<Download>>,
+    pub downloads: Option<Vec<DownloadTask>>,
+    /// downloaded file storage path, by default, it is placed in the current directory
+    pub storage_path: String,
 }
 
 impl TorrentFile {
@@ -48,6 +50,7 @@ impl TorrentFile {
                         is_multiple_files: Self::is_multiple_files(&t),
                         peers: None,
                         downloads: Some(vec![]),
+                        storage_path: ".".to_string(),
                     })
                 }
                 Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
@@ -55,31 +58,32 @@ impl TorrentFile {
             Err(e) => Err(format!("ERROR: {:?}", e).to_string()),
         }
     }
-    /// peers node processing
-    pub async fn peers(&mut self) -> Self {
-        let mut tracker = Tracker::new(self.clone());
-        self.peers = Some(tracker.get_peers().await.unwrap());
-        self.clone()
-    }
     /// ready to download
-    pub async fn ready_to_download(&mut self) -> Self {
-        let mut download_list = Vec::<Download>::new();
+    pub async fn ready_to_download(&mut self) -> &mut Self {
+        let mut tracker = Tracker::new(self.clone());
+        let mut download_list = Vec::<DownloadTask>::new();
         self.meta_data.info.files.iter().for_each(|e| {
             e.clone().iter().for_each(|f| {
-                let mut p_list: Vec<Peer> = vec![];
-                for (key, val) in self.peers.clone().unwrap().iter() {
-                    if key.eq(&f.to_sha1_hash().clone()) {
-                        val.iter().for_each(|e| {
-                            p_list.append(&mut e.peers.clone().unwrap());
-                        });
-                    }
-                }
-                let download = Download::new(f.clone(), p_list, 0);
+                let download =
+                    DownloadTask::new(self.info_hash.clone(), f.clone(), tracker.clone());
                 download_list.push(download);
             });
         });
         self.downloads = Some(download_list);
-        self.clone()
+        self
+    }
+    /// download
+    pub async fn download(&mut self) -> Result<String, String> {
+        if self.is_multiple_files {
+            self.storage_path.push_str("\\");
+            self.storage_path.push_str(&self.meta_data.info.name);
+            for (a, b) in self.downloads.clone().unwrap().iter().enumerate() {
+                b.clone().start().await;
+            }
+            fs::create_dir_all(self.storage_path.clone());
+        } else {
+        }
+        Ok("done".to_string())
     }
     /// get .torrent file all announce url
     fn get_all_announce(torrent: &Torrent) -> Vec<String> {
@@ -117,5 +121,10 @@ impl TorrentFile {
     /// is multiple file
     pub fn is_multiple_files(tf: &Torrent) -> bool {
         if tf.info.files.is_none() { false } else { true }
+    }
+    /// set storage path
+    pub fn set_storage_path(&mut self, storage_path: String) -> Result<&mut Self, String> {
+        self.storage_path = storage_path;
+        Ok(self)
     }
 }

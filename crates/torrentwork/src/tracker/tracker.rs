@@ -5,7 +5,7 @@ use std::{
 
 use tokio::{join, task::JoinHandle};
 
-use crate::file::TorrentFile;
+use crate::{download, file::TorrentFile, torrent::File};
 
 use super::http::{HttpTracker, HttpTrackerResponse, HttpTrackerRquest};
 
@@ -24,54 +24,53 @@ impl Tracker {
         Self { torrent_file: tf }
     }
     /// used to send tracker requests
-    pub async fn get_peers(&mut self) -> Result<HashMap<String, Vec<HttpTrackerResponse>>, String> {
-        let res_map: Arc<Mutex<HashMap<String, Vec<HttpTrackerResponse>>>> =
-            Arc::new(Mutex::new(HashMap::new()));
+    pub async fn get_peers(
+        &mut self,
+        file: File,
+        downloaded: u64,
+        uploaded: u64,
+    ) -> Result<Vec<HttpTrackerResponse>, String> {
+        let res_list: Arc<Mutex<Vec<HttpTrackerResponse>>> =
+            Arc::new(Mutex::new(Vec::<HttpTrackerResponse>::new()));
         // multiple file processing
         if self.torrent_file.is_multiple_files {
             // task pool
             let mut task_pool: Vec<JoinHandle<_>> = Vec::new();
-            let mut files = self.torrent_file.meta_data.info.files.clone().unwrap();
-            for (_index, file) in files.iter_mut().enumerate() {
-                for (_i, u) in self.torrent_file.announces.iter().enumerate() {
-                    let protocol_str: Vec<&str> = u.split("://").collect();
-                    match protocol_str[0] {
-                        "udp" => {}
-                        "http" | "https" => {
-                            let req = HttpTrackerRquest::new(
-                                self.torrent_file.info_hash.clone(),
-                                PEER_ID.to_string(),
-                                HTTP_TRACKER_PORT.to_string(),
-                                "0".to_string(),
-                                "0".to_string(),
-                                file.length.to_string(),
-                                HTTP_TRACKER_COMPACT_MODE.0.to_string(),
-                                HTTP_TRACKER_EVENT_MODE.0.to_string(),
-                            );
-                            // url
-                            let url = u.clone();
-                            // fiel sha1 hash
-                            let file_sha1_hash = file.to_sha1_hash();
-                            let arc_map = Arc::clone(&res_map);
-                            task_pool.push(tokio::spawn(async move {
-                                // http tracker
-                                let http_tracker = HttpTracker::new();
-                                match http_tracker.send(&url, req).await {
-                                    Ok(r) => {
-                                        let mut map = arc_map.lock().unwrap();
-                                        if map.contains_key(&file_sha1_hash) {
-                                            map.get_mut(&file_sha1_hash).unwrap().push(r);
-                                        } else {
-                                            map.insert(file_sha1_hash, vec![r]);
-                                        }
-                                    }
-                                    Err(_e) => {}
+            for (_i, u) in self.torrent_file.announces.iter().enumerate() {
+                let protocol_str: Vec<&str> = u.split("://").collect();
+                match protocol_str[0] {
+                    "udp" => {}
+                    "http" | "https" => {
+                        let req = HttpTrackerRquest::new(
+                            self.torrent_file.info_hash.clone(),
+                            PEER_ID.to_string(),
+                            HTTP_TRACKER_PORT.to_string(),
+                            uploaded.to_string(),
+                            downloaded.to_string(),
+                            file.length.to_string(),
+                            HTTP_TRACKER_COMPACT_MODE.0.to_string(),
+                            HTTP_TRACKER_EVENT_MODE.0.to_string(),
+                        );
+                        // url
+                        let url = u.clone();
+                        let arc_list = Arc::clone(&res_list);
+                        task_pool.push(tokio::spawn(async move {
+                            // http tracker
+                            let http_tracker = HttpTracker::new();
+                            match http_tracker.send(&url, req).await {
+                                Ok(r) => {
+                                    let mut list: std::sync::MutexGuard<
+                                        '_,
+                                        Vec<HttpTrackerResponse>,
+                                    > = arc_list.lock().unwrap();
+                                    list.push(r);
                                 }
-                            }));
-                        }
-                        _ => {
-                            continue;
-                        }
+                                Err(_e) => {}
+                            }
+                        }));
+                    }
+                    _ => {
+                        continue;
                     }
                 }
             }
@@ -91,8 +90,8 @@ impl Tracker {
                 }
             }
         }
-        let arc_map = Arc::clone(&res_map);
-        let ret_map = arc_map.lock().unwrap().to_owned();
-        Ok(ret_map)
+        let arc_list = Arc::clone(&res_list);
+        let ret_list = arc_list.lock().unwrap().to_owned();
+        Ok(ret_list)
     }
 }
